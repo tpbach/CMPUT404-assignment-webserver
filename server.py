@@ -1,6 +1,8 @@
 #  coding: utf-8 
 import socketserver
+import os
 
+# Copyright 2022 Tyler Bach
 # Copyright 2013 Abram Hindle, Eddie Antonio Santos
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -26,13 +28,40 @@ import socketserver
 
 # try: curl -v -X GET http://127.0.0.1:8080/
 
+# Get the root directory for server
+# Inspiration provided by Russell Dias and Mark Amery
+# https://stackoverflow.com/a/5137509
+
+dir_path = os.path.dirname(os.path.realpath(__file__))
+ROOT = os.path.join(dir_path, "www")
 
 class MyWebServer(socketserver.BaseRequestHandler):
     
     def handle(self):
         self.data = self.request.recv(1024).strip()
-        print ("Got a request of: %s\n" % self.data)
-        self.request.sendall(bytearray("OK",'utf-8'))
+        self.data = self.data.decode().split("\n")[0]
+        # Break it down into individual pieces
+        method, page, unused = self.data.split()
+        full_path = os.path.abspath(ROOT + page)
+        
+        # Validate
+        self.validate(method, full_path)
+
+        # Serve Files
+
+        # Serve Directory
+        
+    
+    def validate(self, method, page):
+        if method != "GET":
+            error = f"HTTP/1.1 405 Method Not Allowed\r\nContent-Type: text/html\r\nContent-Length: 18\r\n\r\n"
+            self.request.sendall(bytearray(error, 'utf-8'))
+        
+        if os.path.exists(page) :
+            if 
+
+    
+  
 
 if __name__ == "__main__":
     HOST, PORT = "localhost", 8080
