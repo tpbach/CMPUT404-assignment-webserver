@@ -42,24 +42,40 @@ class MyWebServer(socketserver.BaseRequestHandler):
         self.data = self.data.decode().split("\n")[0]
         # Break it down into individual pieces
         method, page, unused = self.data.split()
-        full_path = os.path.abspath(ROOT + page)
+        
+        full_path = ROOT + page
         
         # Validate
-        self.validate(method, full_path)
+        if self.validate(method, full_path):
+            self.chooseType(full_path)
+        else:
+            print("error found in call")
+            return
 
-        # Serve Files
+    def chooseType(self, page):
+        if os.path.isdir(page):
+            self.serveDirectory(page)
+        elif os.path.isfile(page):
+            self.serveFile(page)
 
-        # Serve Directory
+    def serveFile(self, page):
+        print("wooo serving file")
+
+    def serveDirectory(self, page):
+        print("wooo serving directory")
         
-    
     def validate(self, method, page):
         if method != "GET":
             error = f"HTTP/1.1 405 Method Not Allowed\r\nContent-Type: text/html\r\nContent-Length: 18\r\n\r\n"
-            self.request.sendall(bytearray(error, 'utf-8'))
+            self.request.sendall(bytearray(error, "utf-8"))
+            return False
         
-        if os.path.exists(page) :
-            if 
-
+        if not os.path.exists(page) or 'www' not in os.path.abspath(page):
+            error = f"HTTP/1.1 404 Not Found\r\nContent-Type: text/html\r\nContent-Length: 9\r\n\r\n"
+            self.request.sendall(bytearray(error, "utf-8"))
+            return False
+        
+        return True
     
   
 
