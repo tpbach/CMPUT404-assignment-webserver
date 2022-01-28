@@ -39,9 +39,9 @@ class MyWebServer(socketserver.BaseRequestHandler):
     
     def handle(self):
         self.data = self.request.recv(1024).strip()
-        self.data = self.data.decode().split("\n")[0]
+        self.data = self.data.decode().split("\n")
         # Break it down into individual pieces
-        method, page, unused = self.data.split()
+        method, page, unused = self.data[0].split()
         
         full_path = ROOT + page
         
@@ -59,20 +59,41 @@ class MyWebServer(socketserver.BaseRequestHandler):
             self.serveFile(page)
 
     def serveFile(self, page):
-        print("wooo serving file")
+        
+        file_type = os.path.splitext(page)[0]
+        page = page.replace("/", "\\")
+        print(page)
+        with open(page, "r") as file:
+            content = file.read()
 
-    def serveDirectory(self, page):
-        print("wooo serving directory")
+        if file_type == ".css":
+            message = f"HTTP/1.1 200 OK\r\nContent-Type: text/css\r\nContent-Length: {len(content)}\r\n\r\n"
+            self.sendMessage(message, content)
+        
+        elif file_type == ".html":
+            message = f"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {len(content)}\r\n\r\n"
+            self.sendMessage(message, content)
+
+
+    def sendMessage(self, message, content):
+        data = message + content
+        self.request.sendall(bytearray(data, "utf-8"))
+
+    def serveDirectory(self, page):        
+        curr_page =  os.path.join(page, "index.html")
+        self.serveFile(curr_page)
         
     def validate(self, method, page):
         if method != "GET":
-            error = f"HTTP/1.1 405 Method Not Allowed\r\nContent-Type: text/html\r\nContent-Length: 18\r\n\r\n"
-            self.request.sendall(bytearray(error, "utf-8"))
+            content = "Method Not Allowed"
+            error = f"HTTP/1.1 405 {content}\r\nContent-Type: text/html\r\nContent-Length: {len(content)}\r\n\r\n"
+            self.sendMessage(error, content)
             return False
         
         if not os.path.exists(page) or 'www' not in os.path.abspath(page):
-            error = f"HTTP/1.1 404 Not Found\r\nContent-Type: text/html\r\nContent-Length: 9\r\n\r\n"
-            self.request.sendall(bytearray(error, "utf-8"))
+            content = "Not Found"
+            error = f"HTTP/1.1 404 {content}\r\nContent-Type: text/html\r\nContent-Length: {len(content)}\r\n\r\n"
+            self.sendMessage(error, content)
             return False
         
         return True
