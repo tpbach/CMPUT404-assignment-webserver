@@ -1,4 +1,5 @@
 #  coding: utf-8 
+from queue import Empty
 import socketserver
 import os
 
@@ -39,20 +40,20 @@ class MyWebServer(socketserver.BaseRequestHandler):
     
     def handle(self):
         self.data = self.request.recv(1024).strip()
-        self.data = self.data.decode().split("\n")
-
+        self.data = self.data.decode().split("\r\n")
         # Break it down into individual pieces, HTTP portion is unused
-        method, page, unused = self.data[0].split()
-
-        self.request_path = page
-        # Make full request path
-        full_path = ROOT + page
-        
-        # Validate request
-        if not self.validateMethod(method) or not self.validatePage(full_path):
-            return
-        else:
-            self.chooseType(full_path)
+        if self.data[0] != "":
+            method, page, unused = self.data[0].split()
+            
+            # Make full request path
+            full_path = ROOT + page
+            self.request_path = page            
+            
+            # Validate request
+            if not self.validateMethod(method) or not self.validatePage(full_path):
+                return
+            else:
+                self.chooseType(full_path)
 
     def chooseType(self, page):
         # Decide if we are dealing with a directory or file path
@@ -67,10 +68,12 @@ class MyWebServer(socketserver.BaseRequestHandler):
         with open(page, "r") as file:
             content = file.read()
 
+        # CSS Type
         if file_type == ".css":
             message = f"HTTP/1.1 200 OK\r\nContent-Type: text/css\r\nContent-Length: {len(content)}\r\n\r\n"
             self.sendMessage(message, content)
         
+        # HTML Type
         elif file_type == ".html":
             message = f"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {len(content)}\r\n\r\n"
             self.sendMessage(message, content)
@@ -81,14 +84,18 @@ class MyWebServer(socketserver.BaseRequestHandler):
         self.request.sendall(bytearray(data, "utf-8"))
 
     def serveDirectory(self, page):   
-        # Redirect if not ending in /     
+        # Redirect if not ending in /
+        # Must scan through data because Host is not always in the same spot
         if page[-1] != "/":
-            hostname = self.data[1][5:].strip()
+            for segment in self.data:
+                if "Host:" in segment:
+                    hostname = segment[5:].strip()
+
             content = "Moved Permanently"
             error = f"HTTP/1.1 301 {content}\r\nLocation: http://{hostname}{self.request_path}/\r\nContent-Type: text/html\r\nContent-Length: {len(content)}\r\n\r\n"
             self.sendMessage(error, content)
 
-        # Serve index file of directory (ensure it's valid)
+        # Serve index file of directory (ensure an index.html exists)
         curr_page =  os.path.join(page, "index.html")
         if self.validatePage(curr_page):
             self.serveFile(curr_page)
