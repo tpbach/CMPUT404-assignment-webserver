@@ -40,29 +40,30 @@ class MyWebServer(socketserver.BaseRequestHandler):
     def handle(self):
         self.data = self.request.recv(1024).strip()
         self.data = self.data.decode().split("\n")
-        # Break it down into individual pieces
+
+        # Break it down into individual pieces, HTTP portion is unused
         method, page, unused = self.data[0].split()
-        
+
+        self.request_path = page
+        # Make full request path
         full_path = ROOT + page
         
-        # Validate
-        if self.validate(method, full_path):
-            self.chooseType(full_path)
-        else:
-            print("error found in call")
+        # Validate request
+        if not self.validateMethod(method) or not self.validatePage(full_path):
             return
+        else:
+            self.chooseType(full_path)
 
     def chooseType(self, page):
+        # Decide if we are dealing with a directory or file path
         if os.path.isdir(page):
             self.serveDirectory(page)
         elif os.path.isfile(page):
             self.serveFile(page)
 
     def serveFile(self, page):
-        
-        file_type = os.path.splitext(page)[0]
-        page = page.replace("/", "\\")
-        print(page)
+        # Serve a given file
+        file_type = os.path.splitext(page)[1]
         with open(page, "r") as file:
             content = file.read()
 
@@ -74,22 +75,36 @@ class MyWebServer(socketserver.BaseRequestHandler):
             message = f"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {len(content)}\r\n\r\n"
             self.sendMessage(message, content)
 
-
     def sendMessage(self, message, content):
+        # Send out a given message and its content
         data = message + content
         self.request.sendall(bytearray(data, "utf-8"))
 
-    def serveDirectory(self, page):        
+    def serveDirectory(self, page):   
+        # Redirect if not ending in /     
+        if page[-1] != "/":
+            hostname = self.data[1][5:].strip()
+            content = "Moved Permanently"
+            error = f"HTTP/1.1 301 {content}\r\nLocation: http://{hostname}{self.request_path}/\r\nContent-Type: text/html\r\nContent-Length: {len(content)}\r\n\r\n"
+            self.sendMessage(error, content)
+
+        # Serve index file of directory (ensure it's valid)
         curr_page =  os.path.join(page, "index.html")
-        self.serveFile(curr_page)
+        if self.validatePage(curr_page):
+            self.serveFile(curr_page)
         
-    def validate(self, method, page):
+    def validateMethod(self, method):
+        # Only accept GET method
         if method != "GET":
             content = "Method Not Allowed"
             error = f"HTTP/1.1 405 {content}\r\nContent-Type: text/html\r\nContent-Length: {len(content)}\r\n\r\n"
             self.sendMessage(error, content)
             return False
         
+        return True
+    
+    def validatePage(self, page):
+        # Path must exist and must not be outside ./www directory
         if not os.path.exists(page) or 'www' not in os.path.abspath(page):
             content = "Not Found"
             error = f"HTTP/1.1 404 {content}\r\nContent-Type: text/html\r\nContent-Length: {len(content)}\r\n\r\n"
@@ -98,8 +113,6 @@ class MyWebServer(socketserver.BaseRequestHandler):
         
         return True
     
-  
-
 if __name__ == "__main__":
     HOST, PORT = "localhost", 8080
 
